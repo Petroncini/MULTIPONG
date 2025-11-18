@@ -27,6 +27,22 @@ binary_semaphore updateGraphics(1);
 
 struct termios oldt, newt;
 
+int ballCollidePaddle() {
+  int ix = int(gameState.bx);
+  int iy = int(gameState.by);
+
+  if (ix == 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
+                  iy == gameState.p1y + 1)) {
+    return 1;
+  } else if (ix == WIDTH - 1 &&
+             (iy == gameState.p2y - 1 || iy == gameState.p2y ||
+              iy == gameState.p2y + 1)) {
+    return 2;
+  } else {
+    return 0;
+  }
+}
+
 void enableRawMode() {
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -127,13 +143,11 @@ void ballThread() {
 
     int ix = int(ox);
     int iy = int(oy);
+    int collision = ballCollidePaddle();
 
-    if (ix == 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
-                    iy == gameState.p1y + 1)) {
-      gameState.grid[iy][ix] = '#';
-    } else if (ix == WIDTH - 1 &&
-               (iy == gameState.p2y - 1 || iy == gameState.p2y ||
-                iy == gameState.p2y + 1)) {
+    // aqui depois tem que verificar se collison é 1 ou 2 pra alterar a
+    // pontuação;
+    if (collision != 0) {
       gameState.grid[iy][ix] = '#';
     } else if (ix == WIDTH / 2) {
       gameState.grid[iy][ix] = '|';
@@ -146,7 +160,8 @@ void ballThread() {
     gameState.grid[ny][nx] = 'O';
     updateGraphics.release();
 
-    usleep(10000);
+    // isso devia ser uma variável que vai diminuindo com o tempo
+    usleep(20000);
   }
 }
 
