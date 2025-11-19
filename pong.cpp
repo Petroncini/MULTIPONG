@@ -6,27 +6,57 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#include <ctime>
+#include <cstdlib>
 
 using namespace std;
 
+// Dimensões do display do jogo
 #define WIDTH 51
 #define HEIGHT 20
 
+struct Ball {
+  short id;
+  float x, y;
+  float vx, vy;
+
+  Ball(int b_id) : id(b_id) {
+    x = 10;
+    y = 10;
+    vx = (srand(time(0)) % 3) / 10;
+    vy = (srand(time(0)) % 3) / 10;
+  }
+
+  Ball() {
+    x = 10;
+    y = 10;
+    vx = (srand(time(0)) % 3) / 10;
+    vy = (srand(time(0)) % 3) / 10;
+  }
+};
+
+// Definição dos atributos do jogo
 struct GAMESTATE {
+  int round;
+  int phase;
   int p1y;
   int p2y;
   int p1score;
   int p2score;
-  float bx, by;
-  float bvx, bvy;
+  vector<Ball> balls;
   vector<vector<char> > grid;
 };
 
+// Instância única global do game state
 GAMESTATE gameState;
+// Semáforo para controle da atualização do display
 binary_semaphore updateGraphics(1);
 
+// Armazenamento das configurações do terminal
 struct termios oldt, newt;
 
+// Função que guarda a configuração original do terminal e gera uma 
+// nova em raw mode (dispensa enter para processar input) 
 void enableRawMode() {
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -34,6 +64,7 @@ void enableRawMode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 }
 
+// Restaura o estado original do terminal
 void disableRawMode() { tcsetattr(STDIN_FILENO, TCSANOW, &oldt); }
 
 int kbhit() {
@@ -44,6 +75,7 @@ int kbhit() {
   return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
 }
 
+// Leitura de um caracter da entrada padrão
 char getch() {
   char c;
   if (read(STDIN_FILENO, &c, 1) < 0)
@@ -52,10 +84,11 @@ char getch() {
 }
 
 void graphicsThread() {
-
+  // Loop infinito que atualiza o display sempre que há alguma
+  // alteração no game state
   while (true) {
     updateGraphics.acquire();
-    std::cout << "\033[2J\033[1;1H";
+    cout << "\033[2J\033[1;1H";
 
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
@@ -108,18 +141,19 @@ void playerThread() {
   }
 }
 
-void ballThread() {
+void ballThread(int b_id) {
+  Ball b = gameState.balls[b_id];
   while (true) {
-    float ox = gameState.bx;
-    float oy = gameState.by;
-    float nx = ox + gameState.bvx;
-    float ny = oy + gameState.bvy;
+    float ox = b.x;
+    float oy = b.y;
+    float nx = b.vx;
+    float ny = oy + b.vy;
 
     if (ny >= HEIGHT - 1 || ny <= 0) {
-      gameState.bvy *= -1;
+      b.vy *= -1;
     }
     if (nx >= WIDTH - 1 || nx <= 0) {
-      gameState.bvx *= -1;
+      b.vx *= -1;
     }
 
     nx = max(0.0f, min(float(WIDTH - 1), nx));
@@ -141,8 +175,8 @@ void ballThread() {
       gameState.grid[iy][ix] = '.';
     }
 
-    gameState.bx = nx;
-    gameState.by = ny;
+    b.x = nx;
+    b.y = ny;
     gameState.grid[ny][nx] = 'O';
     updateGraphics.release();
 
@@ -150,11 +184,34 @@ void ballThread() {
   }
 }
 
+void resetGame() {
+  gameState.round++;
+
+  if (gameState.round % 3 == 0) {
+    Ball b = Ball(gameState.phase);
+    gameState.balls.push_back(b);
+  }
+
+  for (int b_id = 0; b_id <= gameState.phase; b_id++) {
+    Ball& b = gameState.balls[b_id];
+    gameState.grid[int(b.y)][int(b.x)] = 'O';
+  }
+
+  gameState.p1y = HEIGHT / 2;
+  gameState.p2y = HEIGHT / 2;
+
+  thread ballworker(ballThread(gameState.phase));
+  ballworker.join();
+
+}
+
 void initGameState(void) {
-  gameState.bx = 10;
-  gameState.by = 10;
-  gameState.bvx = 0.2;
-  gameState.bvy = 0.2;
+  gameState.phase = 0;
+  gameState.round = 0;
+
+  Ball b = Ball(0);
+  gameState.balls[0] = b;
+
   gameState.p1y = HEIGHT / 2;
   gameState.p2y = HEIGHT / 2;
 
@@ -174,7 +231,8 @@ void initGameState(void) {
   gameState.grid[gameState.p2y][WIDTH - 1] = '#';
   gameState.grid[min(gameState.p2y + 1, HEIGHT - 1)][WIDTH - 1] = '#';
 
-  gameState.grid[int(gameState.by)][int(gameState.bx)] = 'O';
+  gameState.grid[int(b.y)][int(b.x)] = 'O';
+
 }
 
 int main(void) {
@@ -184,7 +242,7 @@ int main(void) {
 
   thread graphics_worker(graphicsThread);
   thread p1_worker(playerThread);
-  thread ball_worker(ballThread);
+  thread ball_worker(ballThread(gameState.phase));
 
   graphics_worker.join();
   p1_worker.join();
