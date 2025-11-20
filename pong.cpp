@@ -23,15 +23,19 @@ struct Ball {
   Ball(int b_id) : id(b_id) {
     x = 10;
     y = 10;
-    vx = (srand(time(0)) % 3) / 10;
-    vy = (srand(time(0)) % 3) / 10;
+    srand(time(0));
+    vx = (rand() % 3) / 10;
+    srand(time(0));
+    vy = (rand() % 3) / 10;
   }
 
   Ball() {
     x = 10;
     y = 10;
-    vx = (srand(time(0)) % 3) / 10;
-    vy = (srand(time(0)) % 3) / 10;
+    srand(time(0));
+    vx = (rand() % 3) / 10;
+    srand(time(0));
+    vy = (rand() % 3) / 10;
   }
 };
 
@@ -55,8 +59,25 @@ binary_semaphore updateGraphics(1);
 // Armazenamento das configurações do terminal
 struct termios oldt, newt;
 
-// Função que guarda a configuração original do terminal e gera uma 
-// nova em raw mode (dispensa enter para processar input) 
+// Returns 1 for collision with p1, 2 for collision with p2 and 0 for no collision
+int ballCollidePaddle(Ball& b) {
+  int ix = int(b.x);
+  int iy = int(b.y);
+
+  if (ix == 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
+                  iy == gameState.p1y + 1)) {
+    return 1;
+  } else if (ix == WIDTH - 1 &&
+             (iy == gameState.p2y - 1 || iy == gameState.p2y ||
+              iy == gameState.p2y + 1)) {
+    return 2;
+  } else {
+    return 0;
+  }
+}
+
+// Função que guarda a configuração original do terminal e gera uma
+// nova em raw mode (dispensa enter para processar input)
 void enableRawMode() {
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -65,7 +86,9 @@ void enableRawMode() {
 }
 
 // Restaura o estado original do terminal
-void disableRawMode() { tcsetattr(STDIN_FILENO, TCSANOW, &oldt); }
+void disableRawMode() {
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+}
 
 int kbhit() {
   struct timeval tv = {0L, 0L};
@@ -81,6 +104,29 @@ char getch() {
   if (read(STDIN_FILENO, &c, 1) < 0)
     return 0;
   return c;
+}
+
+void ballThread(int b_id);
+
+void resetGame() {
+  gameState.round++;
+
+  if (gameState.round % 3 == 0) {
+    Ball b = Ball(gameState.phase);
+    gameState.balls.push_back(b);
+
+    thread ballworker(ballThread, gameState.phase);
+    ballworker.join();
+  }
+
+  for (int b_id = 0; b_id <= gameState.phase; b_id++) {
+    Ball& b = gameState.balls[b_id];
+    gameState.grid[int(b.y)][int(b.x)] = 'O';
+  }
+
+  gameState.p1y = HEIGHT / 2;
+  gameState.p2y = HEIGHT / 2;
+
 }
 
 void graphicsThread() {
@@ -161,14 +207,13 @@ void ballThread(int b_id) {
 
     int ix = int(ox);
     int iy = int(oy);
+    int collision = ballCollidePaddle(b);
 
-    if (ix == 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
-                    iy == gameState.p1y + 1)) {
+    // aqui depois tem que verificar se collison é 1 ou 2 pra alterar a
+    // pontuação;
+    if (collision != 0) {
       gameState.grid[iy][ix] = '#';
-    } else if (ix == WIDTH - 1 &&
-               (iy == gameState.p2y - 1 || iy == gameState.p2y ||
-                iy == gameState.p2y + 1)) {
-      gameState.grid[iy][ix] = '#';
+      resetGame();
     } else if (ix == WIDTH / 2) {
       gameState.grid[iy][ix] = '|';
     } else {
@@ -180,29 +225,9 @@ void ballThread(int b_id) {
     gameState.grid[ny][nx] = 'O';
     updateGraphics.release();
 
-    usleep(10000);
+    // isso devia ser uma variável que vai diminuindo com o tempo
+    usleep(20000);
   }
-}
-
-void resetGame() {
-  gameState.round++;
-
-  if (gameState.round % 3 == 0) {
-    Ball b = Ball(gameState.phase);
-    gameState.balls.push_back(b);
-  }
-
-  for (int b_id = 0; b_id <= gameState.phase; b_id++) {
-    Ball& b = gameState.balls[b_id];
-    gameState.grid[int(b.y)][int(b.x)] = 'O';
-  }
-
-  gameState.p1y = HEIGHT / 2;
-  gameState.p2y = HEIGHT / 2;
-
-  thread ballworker(ballThread(gameState.phase));
-  ballworker.join();
-
 }
 
 void initGameState(void) {
@@ -242,7 +267,7 @@ int main(void) {
 
   thread graphics_worker(graphicsThread);
   thread p1_worker(playerThread);
-  thread ball_worker(ballThread(gameState.phase));
+  thread ball_worker(ballThread, gameState.phase);
 
   graphics_worker.join();
   p1_worker.join();
