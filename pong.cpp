@@ -11,10 +11,12 @@
 
 /*
 TODO:
-- Adicionar mutexes para gameState e potencialmente tirar o Grid do gamestate e criar um mutex separado pra ele
+- Adicionar mutexes para gameState e potencialmente tirar o Grid do gamestate e
+criar um mutex separado pra ele
 - Melhorar a colisão com a pá (tem vezes que era pra colidir mas passa direto)
 - Adicionar pontuação do jogador (talvez um mutex separado pra isso)
-- Adicionar mudança do ângulo da bola dependendo de onde colidiu com a pá (que nem no PONG original)
+- Adicionar mudança do ângulo da bola dependendo de onde colidiu com a pá (que
+nem no PONG original)
 - Adicionar q to quit
 - Adicionar efeitos sonoros
 - Adicionar placar no topo do grid talvez (pra ficar bonitinho)
@@ -27,7 +29,8 @@ using namespace std;
 #define WIDTH 51
 #define HEIGHT 20
 vector<thread> ballThreads;
-std::mutex GameReset;
+std::mutex lockGameState;
+std::mutex lockGrid;
 
 struct Ball {
   short id;
@@ -59,12 +62,13 @@ struct GAMESTATE {
   int p2y;
   int p1score;
   int p2score;
+  int win;
   vector<Ball> balls;
-  vector<vector<char> > grid;
 };
 
 // Instância única global do game state
 GAMESTATE gameState;
+vector<vector<char> > grid;
 // Semáforo para controle da atualização do display
 binary_semaphore updateGraphics(1);
 
@@ -120,22 +124,25 @@ char getch() {
 void ballThread(int b_id);
 
 void resetGrid(void) {
-  gameState.grid.assign(HEIGHT, vector<char>(WIDTH, '.'));
+  lockGrid.lock();
+  grid.assign(HEIGHT, vector<char>(WIDTH, '.'));
 
   for (int i = 0; i < HEIGHT; i++) {
-    gameState.grid[i][WIDTH / 2] = '|';
+    grid[i][WIDTH / 2] = '|';
   }
 
-  gameState.grid[max(gameState.p1y - 1, 0)][0] = '#';
-  gameState.grid[gameState.p1y][0] = '#';
-  gameState.grid[min(gameState.p1y + 1, HEIGHT - 1)][0] = '#';
+  grid[max(gameState.p1y - 1, 0)][0] = '#';
+  grid[gameState.p1y][0] = '#';
+  grid[min(gameState.p1y + 1, HEIGHT - 1)][0] = '#';
 
-  gameState.grid[max(gameState.p2y - 1, 0)][WIDTH - 1] = '#';
-  gameState.grid[gameState.p2y][WIDTH - 1] = '#';
-  gameState.grid[min(gameState.p2y + 1, HEIGHT - 1)][WIDTH - 1] = '#';
+  grid[max(gameState.p2y - 1, 0)][WIDTH - 1] = '#';
+  grid[gameState.p2y][WIDTH - 1] = '#';
+  grid[min(gameState.p2y + 1, HEIGHT - 1)][WIDTH - 1] = '#';
+  lockGrid.unlock();
 }
 
 void resetGame() {
+  lockGameState.lock();
   gameState.round++;
 
   if (gameState.round % 5 == 0) {
@@ -149,11 +156,13 @@ void resetGame() {
     Ball &b = gameState.balls[b_id];
     b.x = 10 + rand() % 10;
     b.y = 10 + rand() % 10;
-    resetGrid();
   }
 
   gameState.p1y = HEIGHT / 2;
   gameState.p2y = HEIGHT / 2;
+  gameState.win = 0;
+  usleep(100000);
+  lockGameState.unlock();
   resetGrid();
 }
 
@@ -164,26 +173,46 @@ void resetThread() {
     }
     ballThreads.clear();
     resetGame();
+    lockGameState.lock();
     for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
       thread ballWorker(ballThread, b_id);
       ballThreads.push_back(std::move(ballWorker));
     }
+    lockGameState.unlock();
   }
 }
 
 void graphicsThread() {
   cout << "\033[2J";
   while (true) {
+    updateGraphics.acquire();
     cout << "\033[H";
 
     string buffer = "";
+    lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
-        buffer += gameState.grid[i][j];
+        char c = grid[i][j];
+        if (c == '#' && ((gameState.win == 1 && j == 0) ||
+                         (gameState.win == 2 && j == WIDTH - 1))) {
+          // paddle = green
+          buffer += "\033[92m#\033[0m";
+        } else if (c == '#') {
+          buffer += "\033[37m#\033[0m";
+        } else if (c == 'O') {
+          // ball = white (normal)
+          buffer += "\033[37mO\033[0m";
+        } else {
+          // everything else (center line, dots) = default
+          buffer += c;
+        }
       }
       buffer += '\n';
     }
+    lockGrid.unlock();
+    lockGameState.lock();
     buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
+    lockGameState.unlock();
 
     cout << buffer << flush;
 
@@ -195,20 +224,22 @@ void playerThread() {
   while (true) {
     if (kbhit()) {
       char c = getch();
+      lockGrid.lock();
+      lockGameState.lock();
       if (c == 'w') {
         int oy = gameState.p1y;
         gameState.p1y = max(gameState.p1y - 1, 1);
         if (gameState.p1y != oy) {
-          gameState.grid[oy + 1][0] = '.';
-          gameState.grid[gameState.p1y - 1][0] = '#';
+          grid[oy + 1][0] = '.';
+          grid[gameState.p1y - 1][0] = '#';
           updateGraphics.release();
         }
       } else if (c == 's') {
         int oy = gameState.p1y;
         gameState.p1y = min(gameState.p1y + 1, HEIGHT - 2);
         if (gameState.p1y != oy) {
-          gameState.grid[oy - 1][0] = '.';
-          gameState.grid[gameState.p1y + 1][0] = '#';
+          grid[oy - 1][0] = '.';
+          grid[gameState.p1y + 1][0] = '#';
           updateGraphics.release();
         }
       }
@@ -216,25 +247,28 @@ void playerThread() {
         int oy = gameState.p2y;
         gameState.p2y = max(gameState.p2y - 1, 1);
         if (gameState.p2y != oy) {
-          gameState.grid[oy + 1][WIDTH - 1] = '.';
-          gameState.grid[gameState.p2y - 1][WIDTH - 1] = '#';
+          grid[oy + 1][WIDTH - 1] = '.';
+          grid[gameState.p2y - 1][WIDTH - 1] = '#';
           updateGraphics.release();
         }
       } else if (c == 'k') {
         int oy = gameState.p2y;
         gameState.p2y = min(gameState.p2y + 1, HEIGHT - 2);
         if (gameState.p2y != oy) {
-          gameState.grid[oy - 1][WIDTH - 1] = '.';
-          gameState.grid[gameState.p2y + 1][WIDTH - 1] = '#';
+          grid[oy - 1][WIDTH - 1] = '.';
+          grid[gameState.p2y + 1][WIDTH - 1] = '#';
           updateGraphics.release();
         }
       }
+      lockGrid.unlock();
+      lockGameState.unlock();
     }
   }
 }
 
 void ballThread(int b_id) {
   while (true) {
+    lockGameState.lock();
     Ball &b = gameState.balls[b_id];
     float ox = b.x;
     float oy = b.y;
@@ -253,24 +287,40 @@ void ballThread(int b_id) {
 
     int ix = int(ox);
     int iy = int(oy);
+    b.x = ix;
+    b.y = iy;
     int collision = ballCollidePaddle(b);
 
     // aqui depois tem que verificar se collison é 1 ou 2 pra alterar a
     // pontuação;
+    lockGrid.lock();
     if (collision != 0) {
-      gameState.grid[iy][ix] = '#';
+      grid[iy][ix] = '#';
     } else if (ix <= 0 || ix >= WIDTH - 1) {
+      if (ix == 0) {
+        gameState.p2score++;
+        gameState.win = 2;
+      } else {
+        gameState.p1score++;
+        gameState.win = 1;
+      }
+      lockGrid.unlock();
+      lockGameState.unlock();
       resetGrid();
+      updateGraphics.release();
+      usleep(10000);
       return;
     } else if (ix == WIDTH / 2) {
-      gameState.grid[iy][ix] = '|';
+      grid[iy][ix] = '|';
     } else {
-      gameState.grid[iy][ix] = '.';
+      grid[iy][ix] = '.';
     }
 
     b.x = nx;
     b.y = ny;
-    gameState.grid[b.y][b.x] = 'O';
+    lockGameState.unlock();
+    grid[b.y][b.x] = 'O';
+    lockGrid.unlock();
     updateGraphics.release();
 
     // isso devia ser uma variável que vai diminuindo com o tempo
@@ -279,8 +329,10 @@ void ballThread(int b_id) {
 }
 
 void initGameState(void) {
+  lockGameState.lock();
   gameState.phase = 0;
   gameState.round = 0;
+  gameState.win = 0;
 
   Ball b = Ball(0);
   gameState.balls.push_back(b);
@@ -288,10 +340,18 @@ void initGameState(void) {
   gameState.p1y = HEIGHT / 2;
   gameState.p2y = HEIGHT / 2;
 
-  gameState.grid.resize(HEIGHT, vector<char>(WIDTH, '.'));
+  gameState.p1score = 0;
+  gameState.p2score = 0;
+
+  lockGrid.lock();
+  grid.resize(HEIGHT, vector<char>(WIDTH, '.'));
+  lockGrid.unlock();
 
   resetGrid();
-  gameState.grid[int(b.y)][int(b.x)] = 'O';
+  lockGrid.lock();
+  grid[int(b.y)][int(b.x)] = 'O';
+  lockGrid.unlock();
+  lockGameState.unlock();
 }
 
 int main(void) {
