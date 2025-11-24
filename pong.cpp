@@ -11,8 +11,6 @@
 
 /*
 TODO:
-- Adicionar mutexes para gameState e potencialmente tirar o Grid do gamestate e
-criar um mutex separado pra ele
 - Melhorar a colisão com a pá (tem vezes que era pra colidir mas passa direto)
 - Adicionar pontuação do jogador (talvez um mutex separado pra isso)
 - Adicionar mudança do ângulo da bola dependendo de onde colidiu com a pá (que
