@@ -190,15 +190,9 @@ void graphicsThread() {
     string buffer = "";
 
     lockGameState.lock();
-    buffer += "╔═════════════════════════════════════════════════╗\n";
-    buffer += "║       PLAYER 1: ";
-    buffer += to_string(gameState.p1score);
-    if (gameState.p1score < 10) buffer += " ";
-    buffer += "    vs       PLAYER 2: ";
-    buffer += to_string(gameState.p2score);
-    if (gameState.p2score < 10) buffer += " ";
-    buffer += "     ║\n";
-    buffer += "╚═════════════════════════════════════════════════╝\n";
+    buffer += "║                     ROUND " + to_string(gameState.round + 1) + "                     ║\n";
+    buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
+    buffer += "║           " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            ║\n";
     lockGameState.unlock();
 
     lockGrid.lock();
@@ -223,9 +217,9 @@ void graphicsThread() {
     }
     lockGrid.unlock();
 
-    lockGameState.lock();
-    buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
-    lockGameState.unlock();
+    // lockGameState.lock();
+    // buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
+    // lockGameState.unlock();
 
     cout << buffer << flush;
 
@@ -369,9 +363,42 @@ void initGameState(void) {
 }
 
 
+void showStartScreen() {
+  cout << "\033[2J\033[H";
+  cout << "\n\n\n";
+  cout << "  ╔═══════════════════════════════════════════════════╗\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
+  cout << "  ║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
+  cout << "  ║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
+  cout << "  ║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
+  cout << "  ║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
+  cout << "  ║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
+  cout << "  ║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
+  cout << "  ║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
+  cout << "  ║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
+  cout << "  ║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
+  cout << "  ║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ║                 Player 1: W/S                     ║\n";
+  cout << "  ║                 Player 2: I/K                     ║\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ║          >>> PRESS ENTER TO START <<<             ║\n";
+  cout << "  ║                                                   ║\n";
+  cout << "  ╚═══════════════════════════════════════════════════╝\n";
+  cout << flush;
+  
+  // Aguarda o jogador pressionar Enter
+  cin.get();
+}
+
 
 int main(void) {
 
+  showStartScreen();
 
   initGameState();
 
