@@ -139,6 +139,7 @@ void resetGrid(void) {
   lockGrid.unlock();
 }
 
+// Reinicia a partida após o fim de uma rodada
 void resetGame() {
   lockGameState.lock();
   gameState.round++;
@@ -187,6 +188,19 @@ void graphicsThread() {
     cout << "\033[H";
 
     string buffer = "";
+
+    lockGameState.lock();
+    buffer += "╔═════════════════════════════════════════════════╗\n";
+    buffer += "║       PLAYER 1: ";
+    buffer += to_string(gameState.p1score);
+    if (gameState.p1score < 10) buffer += " ";
+    buffer += "    vs       PLAYER 2: ";
+    buffer += to_string(gameState.p2score);
+    if (gameState.p2score < 10) buffer += " ";
+    buffer += "     ║\n";
+    buffer += "╚═════════════════════════════════════════════════╝\n";
+    lockGameState.unlock();
+
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
@@ -208,6 +222,7 @@ void graphicsThread() {
       buffer += '\n';
     }
     lockGrid.unlock();
+
     lockGameState.lock();
     buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
     lockGameState.unlock();
@@ -326,6 +341,7 @@ void ballThread(int b_id) {
   }
 }
 
+
 void initGameState(void) {
   lockGameState.lock();
   gameState.phase = 0;
@@ -352,7 +368,11 @@ void initGameState(void) {
   lockGameState.unlock();
 }
 
+
+
 int main(void) {
+
+
   initGameState();
 
   enableRawMode();
