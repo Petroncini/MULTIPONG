@@ -192,7 +192,7 @@ void graphicsThread() {
     lockGameState.lock();
     buffer += "║                     ROUND " + to_string(gameState.round + 1) + "                     ║\n";
     buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
-    buffer += "║           " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            ║\n";
+    buffer += "            " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            \n";
     lockGameState.unlock();
 
     lockGrid.lock();
@@ -365,31 +365,32 @@ void initGameState(void) {
 
 void showStartScreen() {
   cout << "\033[2J\033[H";
-  cout << "\n\n\n";
-  cout << "  ╔═══════════════════════════════════════════════════╗\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
-  cout << "  ║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
-  cout << "  ║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
-  cout << "  ║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
-  cout << "  ║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
-  cout << "  ║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
-  cout << "  ║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
-  cout << "  ║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
-  cout << "  ║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
-  cout << "  ║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
-  cout << "  ║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ║                 Player 1: W/S                     ║\n";
-  cout << "  ║                 Player 2: I/K                     ║\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ║          >>> PRESS ENTER TO START <<<             ║\n";
-  cout << "  ║                                                   ║\n";
-  cout << "  ╚═══════════════════════════════════════════════════╝\n";
-  cout << flush;
+  string buffer = "";
+  buffer += "\n\n\n";
+  buffer += "  ╔═══════════════════════════════════════════════════╗\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
+  buffer += "  ║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
+  buffer += "  ║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "  ║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "  ║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
+  buffer += "  ║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
+  buffer += "  ║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
+  buffer += "  ║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
+  buffer += "  ║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
+  buffer += "  ║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
+  buffer += "  ║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║                 Player 1: W/S                     ║\n";
+  buffer += "  ║                 Player 2: I/K                     ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║          >>> PRESS ENTER TO START <<<             ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ╚═══════════════════════════════════════════════════╝\n";
+  cout << buffer << flush;
   
   // Aguarda o jogador pressionar Enter
   cin.get();
