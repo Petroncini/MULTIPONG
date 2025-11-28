@@ -190,6 +190,7 @@ void graphicsThread() {
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
+        // tem que tirar esse negócio de colorir a pá, muito trampo e fica feio
         char c = grid[i][j];
         if (c == '#' && ((gameState.win == 1 && j == 0) ||
                          (gameState.win == 2 && j == WIDTH - 1))) {
@@ -268,6 +269,7 @@ void ballThread(int b_id) {
   while (true) {
     lockGameState.lock();
     Ball &b = gameState.balls[b_id];
+    // talvez já da um unlock no gameState aqui? NÃO, só se fizer uma cópia da bola em vez de usar referencia
     float ox = b.x;
     float oy = b.y;
     float nx = ox + b.vx;
