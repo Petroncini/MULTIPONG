@@ -139,6 +139,7 @@ void resetGrid(void) {
   lockGrid.unlock();
 }
 
+// Reinicia a partida após o fim de uma rodada
 void resetGame() {
   lockGameState.lock();
   gameState.round++;
@@ -187,6 +188,13 @@ void graphicsThread() {
     cout << "\033[H";
 
     string buffer = "";
+
+    lockGameState.lock();
+    buffer += "║                     ROUND " + to_string(gameState.round + 1) + "                     ║\n";
+    buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
+    buffer += "            " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            \n";
+    lockGameState.unlock();
+
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
@@ -209,9 +217,10 @@ void graphicsThread() {
       buffer += '\n';
     }
     lockGrid.unlock();
-    lockGameState.lock();
-    buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
-    lockGameState.unlock();
+
+    // lockGameState.lock();
+    // buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
+    // lockGameState.unlock();
 
     cout << buffer << flush;
 
@@ -328,6 +337,7 @@ void ballThread(int b_id) {
   }
 }
 
+
 void initGameState(void) {
   lockGameState.lock();
   gameState.phase = 0;
@@ -354,7 +364,45 @@ void initGameState(void) {
   lockGameState.unlock();
 }
 
+
+void showStartScreen() {
+  cout << "\033[2J\033[H";
+  string buffer = "";
+  buffer += "\n\n\n";
+  buffer += "  ╔═══════════════════════════════════════════════════╗\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
+  buffer += "  ║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
+  buffer += "  ║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "  ║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "  ║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
+  buffer += "  ║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
+  buffer += "  ║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
+  buffer += "  ║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
+  buffer += "  ║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
+  buffer += "  ║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
+  buffer += "  ║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║                 Player 1: W/S                     ║\n";
+  buffer += "  ║                 Player 2: I/K                     ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ║          >>> PRESS ENTER TO START <<<             ║\n";
+  buffer += "  ║                                                   ║\n";
+  buffer += "  ╚═══════════════════════════════════════════════════╝\n";
+  cout << buffer << flush;
+  
+  // Aguarda o jogador pressionar Enter
+  cin.get();
+}
+
+
 int main(void) {
+
+  showStartScreen();
+
   initGameState();
 
   enableRawMode();
