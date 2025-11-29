@@ -10,13 +10,12 @@
 #include <unistd.h>
 #include <vector>
 
-
 using namespace std;
 
 // Dimensões do display do jogo
 #define WIDTH 51
 #define HEIGHT 20
-#define ANGLE_DELTA 1
+#define ANGLE_DELTA 0
 vector<thread> ballThreads;
 std::mutex lockGameState;
 std::mutex lockGrid;
@@ -145,7 +144,7 @@ void resetGame() {
   }
 
   for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
-    Ball &b = gameState.balls[b_id];
+    gameState.balls[b_id] = Ball(b_id);
   }
 
   gameState.p1y = HEIGHT / 2;
@@ -255,34 +254,8 @@ void playerThread() {
 }
 
 void changeBallAngle(Ball &b, int collidedPaddle) {
-  int paddle_y = (collidedPaddle == 1) ? gameState.p1y : gameState.p2y;
-  int offset = int(b.y) - paddle_y;
-
-  float speed = sqrt(b.vx * b.vx + b.vy * b.vy);
-  float old_angle = atan2(b.vy, b.vx);
-  float new_angle = old_angle + offset * ANGLE_DELTA * M_PI / 180.0f;
-
-  // Clamp angle to prevent too vertical trajectories
-  const float MAX_ANGLE = 60.0f * M_PI / 180.0f; // 75 degrees in radians
-  const float PI = float(M_PI);                  // Cast M_PI to float once
-
-  // Normalize angle to [-π, π]
-  while (new_angle > PI)
-    new_angle -= 2 * PI;
-  while (new_angle < -PI)
-    new_angle += 2 * PI;
-
-  // Clamp based on direction
-  if (new_angle >= 0 && new_angle <= PI) {
-    // Ball moving left (upper half of unit circle)
-    new_angle = max(PI - MAX_ANGLE, min(PI + MAX_ANGLE, new_angle));
-  } else {
-    // Ball moving right (lower half of unit circle)
-    new_angle = max(-MAX_ANGLE, min(MAX_ANGLE, new_angle));
-  }
-
-  b.vy = sin(new_angle) * speed;
-  b.vx = cos(new_angle) * speed;
+  b.vy = b.vy;
+  b.vx = -b.vx;
 }
 
 void ballThread(int b_id) {
