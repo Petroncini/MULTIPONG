@@ -23,7 +23,7 @@ nem no PONG original)
 
 using namespace std;
 
-// Dimensões do display do jogo
+// Display dimensions
 #define WIDTH 51
 #define HEIGHT 20
 vector<thread> ballThreads;
