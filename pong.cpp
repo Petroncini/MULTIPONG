@@ -10,17 +10,6 @@
 #include <unistd.h>
 #include <vector>
 
-/*
-TODO:
-- Melhorar a colisão com a pá (tem vezes que era pra colidir mas passa direto)
-- Adicionar pontuação do jogador (talvez um mutex separado pra isso)
-- Adicionar mudança do ângulo da bola dependendo de onde colidiu com a pá (que
-nem no PONG original)
-- Adicionar q to quit
-- Adicionar efeitos sonoros
-- Adicionar placar no topo do grid talvez (pra ficar bonitinho)
-- Adicionar mensagem de "player 1 scores!" em algum lugar quando faz ponto
-*/
 
 using namespace std;
 
@@ -156,10 +145,7 @@ void resetGame() {
   }
 
   for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
-
     Ball &b = gameState.balls[b_id];
-    b.x = 10 + rand() % 10;
-    b.y = 10 + rand() % 10;
   }
 
   gameState.p1y = HEIGHT / 2;
