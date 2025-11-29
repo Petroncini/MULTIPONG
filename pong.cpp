@@ -212,6 +212,7 @@ void graphicsThread() {
       }
       buffer += '\n';
     }
+    buffer += "\nPress Ctrl+C to quit.\n";
     lockGrid.unlock();
 
     // lockGameState.lock();
