@@ -378,7 +378,6 @@ void ballThread(int b_id) {
   }
 }
 void initGameState(void) {
-  lockGameState.lock();
   gameState.phase = 0;
   gameState.round = 0;
   gameState.win = 0;
@@ -392,15 +391,11 @@ void initGameState(void) {
   gameState.p1score = 0;
   gameState.p2score = 0;
 
-  lockGrid.lock();
   grid.resize(HEIGHT, vector<char>(WIDTH, '.'));
-  lockGrid.unlock();
 
   resetGrid();
-  lockGrid.lock();
   grid[int(b.y)][int(b.x)] = 'O';
-  lockGrid.unlock();
-  lockGameState.unlock();
+
 }
 
 void showStartScreen() {
