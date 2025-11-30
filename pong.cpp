@@ -14,10 +14,14 @@ using namespace std;
 // Display dimensions
 #define WIDTH 51
 #define HEIGHT 20
+// Vector to store ball threads
 vector<thread> ballThreads;
+// Mutex for game state protection
 std::mutex lockGameState;
+// Mutex for grid protection
 std::mutex lockGrid;
 
+// Ball structure
 struct Ball {
   float x, y;
   float vx, vy;
@@ -26,13 +30,14 @@ struct Ball {
     x = WIDTH / 2;
     y = HEIGHT / 2;
 
-    // Ângulo aleatório entre -30° e 30° para uma trajetória rasa
-    float angle = (rand() % 60 - 30) * M_PI / 180.0f; // -30° to 30°
+    // Random angle between -30° and 30° for shallow trajectory
+    float angle = (rand() % 60 - 30) * M_PI / 180.0f;
     float speed = 0.25f;
 
     vx = cos(angle) * speed;
     vy = sin(angle) * speed;
 
+    // Randomize initial direction
     if (rand() % 2 == 0) {
       vx *= -1;
     }
@@ -42,7 +47,7 @@ struct Ball {
   }
 };
 
-// Definição dos atributos do jogo
+// Game state attributes
 struct GAMESTATE {
   int round;
   int phase;
@@ -54,16 +59,17 @@ struct GAMESTATE {
   vector<Ball> balls;
 };
 
-// Instância única global do game state
+// Global game state instance
 GAMESTATE gameState;
+// Display grid
 vector<vector<char> > grid;
-// Semáforo para controle da atualização do display
+// Semaphore for display update control
 binary_semaphore updateGraphics(1);
 
-// Armazenamento das configurações do terminal
+// Terminal configuration storage
 struct termios oldt, newt;
 
-// Retorna 1 para colisão com P1, 2 para colisão com P2 e 0 para não colisão
+// Returns 1 for P1 collision, 2 for P2 collision, 0 for no collision
 int ballCollidePaddle(Ball &b) {
   int ix = int(b.x);
   int iy = int(b.y);
@@ -80,8 +86,7 @@ int ballCollidePaddle(Ball &b) {
   }
 }
 
-// Função que guarda a configuração original do terminal e gera uma
-// nova em raw mode (dispensa enter para processar input)
+// Saves original terminal config and enables raw mode (no enter needed)
 void enableRawMode() {
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -91,12 +96,12 @@ void enableRawMode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 }
 
-// Restaura o estado original do terminal
+// Restores original terminal state
 void disableRawMode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
-// Verifica se uma tecla foi pressionada
+// Checks if a key was pressed
 int kbhit() {
   struct timeval tv = {0L, 0L};
   fd_set fds;
@@ -105,7 +110,7 @@ int kbhit() {
   return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
 }
 
-// Leitura de um caracter da entrada padrão
+// Reads a character from stdin
 char getch() {
   char c;
   if (read(STDIN_FILENO, &c, 1) < 0)
@@ -115,40 +120,46 @@ char getch() {
 
 void ballThread(int b_id);
 
-// Recria o grid
+// Recreates the grid
 void resetGrid(void) {
   lockGrid.lock();
   grid.assign(HEIGHT, vector<char>(WIDTH, '.'));
 
+  // Draw center line
   for (int i = 0; i < HEIGHT; i++) {
     grid[i][WIDTH / 2] = '|';
   }
 
+  // Draw P1 paddle
   grid[max(gameState.p1y - 1, 0)][0] = '#';
   grid[gameState.p1y][0] = '#';
   grid[min(gameState.p1y + 1, HEIGHT - 1)][0] = '#';
 
+  // Draw P2 paddle
   grid[max(gameState.p2y - 1, 0)][WIDTH - 1] = '#';
   grid[gameState.p2y][WIDTH - 1] = '#';
   grid[min(gameState.p2y + 1, HEIGHT - 1)][WIDTH - 1] = '#';
   lockGrid.unlock();
 }
 
-// Reinicia a partida após o fim de uma rodada
+// Resets game after a round ends
 void resetGame() {
   lockGameState.lock();
   gameState.round++;
 
+  // Add new ball every 5 rounds
   if (gameState.round % 5 == 0) {
     gameState.phase++;
     Ball b = Ball();
     gameState.balls.push_back(b);
   }
 
+  // Reset all balls
   for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
     gameState.balls[b_id] = Ball();
   }
 
+  // Reset paddle positions
   gameState.p1y = HEIGHT / 2;
   gameState.p2y = HEIGHT / 2;
   gameState.win = 0;
@@ -157,14 +168,16 @@ void resetGame() {
   resetGrid();
 }
 
-// Thread que controla reinício após ponto
+// Thread that controls reset after scoring
 void resetThread() {
   while (true) {
+    // Wait for all ball threads to finish
     for (auto &ballThread : ballThreads) {
       ballThread.join();
     }
     ballThreads.clear();
     resetGame();
+    // Restart ball threads
     lockGameState.lock();
     for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
       thread ballWorker(ballThread, b_id);
@@ -174,7 +187,7 @@ void resetThread() {
   }
 }
 
-// Thread responsável por imprimir o jogo
+// Thread responsible for rendering the game
 void graphicsThread() {
   const string BLUE = "\033[34m";
   const string GREEN = "\033[32m";
@@ -187,6 +200,7 @@ void graphicsThread() {
 
     string buffer = "";
 
+    // Build header with scores
     lockGameState.lock();
     buffer += "                     ROUND " + to_string(gameState.round + 1) +
               "                     \n";
@@ -196,6 +210,7 @@ void graphicsThread() {
               "             \n";
     lockGameState.unlock();
 
+    // Build grid display
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
@@ -211,13 +226,14 @@ void graphicsThread() {
   }
 }
 
-// Thread que lê teclas e move paddle
+// Thread that reads keys and moves paddles
 void playerThread() {
   while (true) {
     if (kbhit()) {
       char c = getch();
       lockGrid.lock();
       lockGameState.lock();
+      // Player 1 up
       if (c == 'w') {
         int oy = gameState.p1y;
         gameState.p1y = max(gameState.p1y - 1, 1);
@@ -226,6 +242,7 @@ void playerThread() {
           grid[gameState.p1y - 1][0] = '#';
           updateGraphics.release();
         }
+      // Player 1 down
       } else if (c == 's') {
         int oy = gameState.p1y;
         gameState.p1y = min(gameState.p1y + 1, HEIGHT - 2);
@@ -235,6 +252,7 @@ void playerThread() {
           updateGraphics.release();
         }
       }
+      // Player 2 up
       if (c == 'i') {
         int oy = gameState.p2y;
         gameState.p2y = max(gameState.p2y - 1, 1);
@@ -243,6 +261,7 @@ void playerThread() {
           grid[gameState.p2y - 1][WIDTH - 1] = '#';
           updateGraphics.release();
         }
+      // Player 2 down
       } else if (c == 'k') {
         int oy = gameState.p2y;
         gameState.p2y = min(gameState.p2y + 1, HEIGHT - 2);
@@ -258,28 +277,31 @@ void playerThread() {
   }
 }
 
-// Muda o ângulo a depender de onde a bola bate no paddle
+// Changes ball angle based on where it hits the paddle
 void changeBallAngle(Ball &b, int collidedPaddle) {
     float paddleCenterY = (collidedPaddle == 1) ? gameState.p1y : gameState.p2y;
     float relativeIntersectY = b.y - paddleCenterY;
     float normalizedRelativeIntersectionY = relativeIntersectY / 1.5f;
     
+    // Clamp normalized value
     if (normalizedRelativeIntersectionY > 1.0f)
       normalizedRelativeIntersectionY = 1.0f;
 
     if (normalizedRelativeIntersectionY < -1.0f)
       normalizedRelativeIntersectionY = -1.0f;
 
+    // Calculate new angle
     float maxBounceAngle = 60.0f * M_PI / 180.0f;
     float bounceAngle = normalizedRelativeIntersectionY * maxBounceAngle;
     float currentSpeed = std::sqrt(b.vx * b.vx + b.vy * b.vy);
     float direction = (collidedPaddle == 1) ? 1.0f : -1.0f;
 
+    // Apply new velocity
     b.vx = currentSpeed * std::cos(bounceAngle) * direction;
     b.vy = currentSpeed * std::sin(bounceAngle);
 }
 
-// Thread da bola
+// Ball thread
 void ballThread(int b_id) {
   while (true) {
     lockGameState.lock();
@@ -308,14 +330,15 @@ void ballThread(int b_id) {
     // Handle collision - change angle and bounce
     if (collision != 0) {
       changeBallAngle(b, collision);
-      // Clamp position to stay at paddle edge, don't recalculate
+      // Clamp position to paddle edge
       if (collision == 1) {
-        nx = 1.0f; // Keep ball just after p1 paddle
+        nx = 1.0f;
       } else {
-        nx = WIDTH - 2.0f; // Keep ball just before p2 paddle
+        nx = WIDTH - 2.0f;
       }
     }
 
+    // Update ball position
     b.x = nx;
     b.y = ny;
     int new_x = int(b.x);
@@ -357,7 +380,7 @@ void ballThread(int b_id) {
   }
 }
 
-// Inicia o jogo
+// Initializes game state
 void initGameState(void) {
   gameState.phase = 0;
   gameState.round = 0;
@@ -379,7 +402,7 @@ void initGameState(void) {
 
 }
 
-// Tela de entrada
+// Start screen
 void showStartScreen() {
   cout << "\033[2J\033[H";
   string buffer = "";
@@ -409,18 +432,17 @@ void showStartScreen() {
   buffer += "╚═══════════════════════════════════════════════════╝\n";
   cout << buffer << flush;
 
-  // Aguarda o jogador pressionar Enter
+  // Wait for player to press Enter
   cin.get();
 }
 
 int main(void) {
 
   showStartScreen();
-
   initGameState();
-
   enableRawMode();
 
+  // Start all threads
   thread graphics_worker(graphicsThread);
   thread player_worker(playerThread);
   thread ball_worker(ballThread, gameState.phase);
@@ -428,6 +450,7 @@ int main(void) {
 
   ballThreads.push_back(std::move(ball_worker));
 
+  // Wait for threads to finish
   graphics_worker.join();
   player_worker.join();
   resetWorker.join();
