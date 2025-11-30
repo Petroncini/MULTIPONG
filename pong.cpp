@@ -14,14 +14,6 @@ using namespace std;
 // Display dimensions
 #define WIDTH 51
 #define HEIGHT 20
-// Vector to store ball threads
-vector<thread> ballThreads;
-// Mutex for game state protection
-std::mutex lockGameState;
-// Mutex for grid protection
-std::mutex lockGrid;
-// Global quit flag
-bool QUIT = false;
 
 // Ball structure
 struct Ball {
@@ -34,7 +26,7 @@ struct Ball {
 
     // Random angle between -30° and 30° for shallow trajectory
     float angle = (rand() % 60 - 30) * M_PI / 180.0f;
-    float speed = 0.25f;
+    float speed = 0.30f;
 
     vx = cos(angle) * speed;
     vy = sin(angle) * speed;
@@ -65,28 +57,19 @@ struct GAMESTATE {
 GAMESTATE gameState;
 // Display grid
 vector<vector<char> > grid;
+// Vector to store ball threads
+vector<thread> ballThreads;
 // Semaphore for display update control
 binary_semaphore updateGraphics(1);
+// Mutex for game state protection
+std::mutex lockGameState;
+// Mutex for grid protection
+std::mutex lockGrid;
+// Global quit flag
+bool QUIT = false;
 
 // Terminal configuration storage
 struct termios oldt, newt;
-
-// Returns 1 for P1 collision, 2 for P2 collision, 0 for no collision
-int ballCollidePaddle(Ball &b) {
-  int ix = int(b.x);
-  int iy = int(b.y);
-
-  if (ix <= 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
-                  iy == gameState.p1y + 1)) {
-    return 1;
-  } else if (ix >= WIDTH - 1 &&
-             (iy == gameState.p2y - 1 || iy == gameState.p2y ||
-              iy == gameState.p2y + 1)) {
-    return 2;
-  } else {
-    return 0;
-  }
-}
 
 // Saves original terminal config and enables raw mode (no enter needed)
 void enableRawMode() {
@@ -120,7 +103,45 @@ char getch() {
   return c;
 }
 
-void ballThread(int b_id);
+// Thread responsible for rendering the game
+void graphicsThread() {
+  const string BLUE = "\033[34m";
+  const string GREEN = "\033[32m";
+  const string RESET = "\033[0m";
+
+  cout << "\033[2J";
+  while (!QUIT) {
+    updateGraphics.acquire();
+    cout << "\033[H";
+
+    string buffer = "";
+
+    // Build header with scores
+    lockGameState.lock();
+    buffer += "                     ROUND " + to_string(gameState.round + 1) +
+              "                     \n";
+    buffer += "        " + BLUE + "PLAYER 1" + RESET + "       vs        " + 
+              GREEN + "PLAYER 2" + RESET + "        \n";
+    buffer += "           " + to_string(gameState.p1score) +
+              "                        " + to_string(gameState.p2score) +
+              "             \n";
+    lockGameState.unlock();
+
+    // Build grid display
+    lockGrid.lock();
+    for (int i = 0; i < HEIGHT; i++) {
+      for (int j = 0; j < WIDTH; j++) {
+        char c = grid[i][j];
+        buffer += c;
+      }
+      buffer += '\n';
+    }
+    buffer += "Press Q to quit.";
+    lockGrid.unlock();
+
+    cout << buffer << flush;
+  }
+}
 
 // Recreates the grid
 void resetGrid(void) {
@@ -170,6 +191,7 @@ void resetGame() {
   resetGrid();
 }
 
+void ballThread(int b_id);
 // Thread that controls reset after scoring
 void resetThread() {
   while (!QUIT) {
@@ -188,45 +210,6 @@ void resetThread() {
       ballThreads.push_back(std::move(ballWorker));
     }
     lockGameState.unlock();
-  }
-}
-
-// Thread responsible for rendering the game
-void graphicsThread() {
-  const string BLUE = "\033[34m";
-  const string GREEN = "\033[32m";
-  const string RESET = "\033[0m";
-
-  cout << "\033[2J";
-  while (!QUIT) {
-    updateGraphics.acquire();
-    cout << "\033[H";
-
-    string buffer = "";
-
-    // Build header with scores
-    lockGameState.lock();
-    buffer += "                     ROUND " + to_string(gameState.round + 1) +
-              "                     \n";
-    buffer += "        " + BLUE + "PLAYER 1" + RESET + "       vs        " + GREEN + "PLAYER 2" + RESET + "        \n";
-    buffer += "           " + to_string(gameState.p1score) +
-              "                        " + to_string(gameState.p2score) +
-              "             \n";
-    lockGameState.unlock();
-
-    // Build grid display
-    lockGrid.lock();
-    for (int i = 0; i < HEIGHT; i++) {
-      for (int j = 0; j < WIDTH; j++) {
-        char c = grid[i][j];
-        buffer += c;
-      }
-      buffer += '\n';
-    }
-    buffer += "Press Q to quit.";
-    lockGrid.unlock();
-
-    cout << buffer << flush;
   }
 }
 
@@ -309,6 +292,23 @@ void changeBallAngle(Ball &b, int collidedPaddle) {
     // Apply new velocity
     b.vx = currentSpeed * std::cos(bounceAngle) * direction;
     b.vy = currentSpeed * std::sin(bounceAngle);
+}
+
+// Returns 1 for P1 collision, 2 for P2 collision, 0 for no collision
+int ballCollidePaddle(Ball &b) {
+  int ix = int(b.x);
+  int iy = int(b.y);
+
+  if (ix <= 0 && (iy == gameState.p1y - 1 || iy == gameState.p1y ||
+                  iy == gameState.p1y + 1)) {
+    return 1;
+  } else if (ix >= WIDTH - 1 &&
+             (iy == gameState.p2y - 1 || iy == gameState.p2y ||
+              iy == gameState.p2y + 1)) {
+    return 2;
+  } else {
+    return 0;
+  }
 }
 
 // Ball thread
