@@ -201,7 +201,7 @@ void graphicsThread() {
       }
       buffer += '\n';
     }
-    buffer += "\nPress Ctrl+C to quit.\n";
+    buffer += "Press Ctrl+C to quit.";
     lockGrid.unlock();
 
     cout << buffer << flush;
