@@ -26,7 +26,7 @@ struct Ball {
     x = WIDTH / 2;
     y = HEIGHT / 2;
 
-    // Random angle between -30° and 30° for shallow trajectory
+    // Ângulo aleatório entre -30° e 30° para uma trajetória rasa
     float angle = (rand() % 60 - 30) * M_PI / 180.0f; // -30° to 30°
     float speed = 0.25f;
 
@@ -63,8 +63,7 @@ binary_semaphore updateGraphics(1);
 // Armazenamento das configurações do terminal
 struct termios oldt, newt;
 
-// Returns 1 for collision with p1, 2 for collision with p2 and 0 for no
-// collision
+// Retorna 1 para colisão com P1, 2 para colisão com P2 e 0 para não colisão
 int ballCollidePaddle(Ball &b) {
   int ix = int(b.x);
   int iy = int(b.y);
@@ -97,6 +96,7 @@ void disableRawMode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
+// Verifica se uma tecla foi pressionada
 int kbhit() {
   struct timeval tv = {0L, 0L};
   fd_set fds;
@@ -115,6 +115,7 @@ char getch() {
 
 void ballThread(int b_id);
 
+// Recria o grid
 void resetGrid(void) {
   lockGrid.lock();
   grid.assign(HEIGHT, vector<char>(WIDTH, '.'));
@@ -156,6 +157,7 @@ void resetGame() {
   resetGrid();
 }
 
+// Thread que controla reinício após ponto
 void resetThread() {
   while (true) {
     for (auto &ballThread : ballThreads) {
@@ -172,6 +174,7 @@ void resetThread() {
   }
 }
 
+// Thread responsável por imprimir o jogo
 void graphicsThread() {
   cout << "\033[2J";
   while (true) {
@@ -181,12 +184,12 @@ void graphicsThread() {
     string buffer = "";
 
     lockGameState.lock();
-    buffer += "║                     ROUND " + to_string(gameState.round + 1) +
-              "                     ║\n";
-    buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
-    buffer += "║          " + to_string(gameState.p1score) +
+    buffer += "                     ROUND " + to_string(gameState.round + 1) +
+              "                     \n";
+    buffer += "        PLAYER 1       vs        PLAYER 2        \n";
+    buffer += "           " + to_string(gameState.p1score) +
               "                        " + to_string(gameState.p2score) +
-              "             ║\n";
+              "             \n";
     lockGameState.unlock();
 
     lockGrid.lock();
@@ -197,13 +200,14 @@ void graphicsThread() {
       }
       buffer += '\n';
     }
-    buffer += "\nPress Ctrl+C to quit.\n";
+    buffer += "Press Ctrl+C to quit.";
     lockGrid.unlock();
 
     cout << buffer << flush;
   }
 }
 
+// Thread que lê teclas e move paddle
 void playerThread() {
   while (true) {
     if (kbhit()) {
@@ -250,6 +254,7 @@ void playerThread() {
   }
 }
 
+// Muda o ângulo a depender de onde a bola bate no paddle
 void changeBallAngle(Ball &b, int collidedPaddle) {
     float paddleCenterY = (collidedPaddle == 1) ? gameState.p1y : gameState.p2y;
     float relativeIntersectY = b.y - paddleCenterY;
@@ -270,6 +275,7 @@ void changeBallAngle(Ball &b, int collidedPaddle) {
     b.vy = currentSpeed * std::sin(bounceAngle);
 }
 
+// Thread da bola
 void ballThread(int b_id) {
   while (true) {
     lockGameState.lock();
@@ -346,6 +352,8 @@ void ballThread(int b_id) {
     usleep(20000);
   }
 }
+
+// Inicia o jogo
 void initGameState(void) {
   gameState.phase = 0;
   gameState.round = 0;
@@ -367,33 +375,34 @@ void initGameState(void) {
 
 }
 
+// Tela de entrada
 void showStartScreen() {
   cout << "\033[2J\033[H";
   string buffer = "";
   buffer += "\n\n\n";
-  buffer += "  ╔═══════════════════════════════════════════════════╗\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
-  buffer += "  ║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
-  buffer += "  ║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
-  buffer += "  ║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
-  buffer += "  ║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
-  buffer += "  ║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
-  buffer += "  ║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
-  buffer += "  ║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
-  buffer += "  ║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
-  buffer += "  ║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
-  buffer += "  ║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ║                 Player 1: W/S                     ║\n";
-  buffer += "  ║                 Player 2: I/K                     ║\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ║          >>> PRESS ENTER TO START <<<             ║\n";
-  buffer += "  ║                                                   ║\n";
-  buffer += "  ╚═══════════════════════════════════════════════════╝\n";
+  buffer += "╔═══════════════════════════════════════════════════╗\n";
+  buffer += "║                                                   ║\n";
+  buffer += "║   ███╗   ███╗██╗   ██╗██╗  ████████╗██╗           ║\n";
+  buffer += "║   ████╗ ████║██║   ██║██║  ╚══██╔══╝██║           ║\n";
+  buffer += "║   ██╔████╔██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "║   ██║╚██╔╝██║██║   ██║██║     ██║   ██║           ║\n";
+  buffer += "║   ██║ ╚═╝ ██║╚██████╔╝███████╗██║   ██║           ║\n";
+  buffer += "║   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝           ║\n";
+  buffer += "║                                                   ║\n";
+  buffer += "║           ██████╗  ██████╗ ███╗   ██╗ ██████╗     ║\n";
+  buffer += "║           ██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ║\n";
+  buffer += "║           ██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ║\n";
+  buffer += "║           ██╔═══╝ ██║   ██║██║╚██╗██║██║   ██║    ║\n";
+  buffer += "║           ██║     ╚██████╔╝██║ ╚████║╚██████╔╝    ║\n";
+  buffer += "║           ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ║\n";
+  buffer += "║                                                   ║\n";
+  buffer += "║                                                   ║\n";
+  buffer += "║                 Player 1: W/S                     ║\n";
+  buffer += "║                 Player 2: I/K                     ║\n";
+  buffer += "║                                                   ║\n";
+  buffer += "║          >>> PRESS ENTER TO START <<<             ║\n";
+  buffer += "║                                                   ║\n";
+  buffer += "╚═══════════════════════════════════════════════════╝\n";
   cout << buffer << flush;
 
   // Aguarda o jogador pressionar Enter
