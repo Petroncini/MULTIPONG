@@ -12,7 +12,7 @@
 
 using namespace std;
 
-// Dimensões do display do jogo
+// Display dimensions
 #define WIDTH 51
 #define HEIGHT 20
 #define ANGLE_DELTA 0
@@ -93,7 +93,9 @@ void enableRawMode() {
 }
 
 // Restaura o estado original do terminal
-void disableRawMode() { tcsetattr(STDIN_FILENO, TCSANOW, &oldt); }
+void disableRawMode() {
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+}
 
 // Verifica se uma tecla foi pressionada
 int kbhit() {
@@ -199,6 +201,7 @@ void graphicsThread() {
       }
       buffer += '\n';
     }
+    buffer += "\nPress Ctrl+C to quit.\n";
     lockGrid.unlock();
 
     cout << buffer << flush;
@@ -254,34 +257,19 @@ void playerThread() {
 
 // Muda o ângulo a depender de onde a bola bate no paddle
 void changeBallAngle(Ball &b, int collidedPaddle) {
-    // 1. Determine the center Y of the paddle we hit
     float paddleCenterY = (collidedPaddle == 1) ? gameState.p1y : gameState.p2y;
-
-    // 2. Calculate relative intersection (how far from center did we hit?)
-    // Negative = hit top of paddle, Positive = hit bottom of paddle
     float relativeIntersectY = b.y - paddleCenterY;
-
-    // 3. Normalize the intersection
-    // The paddle has a "radius" of roughly 1.0 to 1.5 (since height is 3 chars).
-    // We divide by 1.5 to map the edges of the paddle to roughly -1.0 and 1.0
     float normalizedRelativeIntersectionY = relativeIntersectY / 1.5f;
     
-    // Clamp the value between -1 and 1 to ensure we don't exceed max angle
-    // (std::clamp requires <algorithm> and C++17, otherwise use max/min)
-    if (normalizedRelativeIntersectionY > 1.0f) normalizedRelativeIntersectionY = 1.0f;
-    if (normalizedRelativeIntersectionY < -1.0f) normalizedRelativeIntersectionY = -1.0f;
+    if (normalizedRelativeIntersectionY > 1.0f)
+      normalizedRelativeIntersectionY = 1.0f;
 
-    // 4. Calculate new bounce angle
-    // 60 degrees in radians = 60 * PI / 180
+    if (normalizedRelativeIntersectionY < -1.0f)
+      normalizedRelativeIntersectionY = -1.0f;
+
     float maxBounceAngle = 60.0f * M_PI / 180.0f;
     float bounceAngle = normalizedRelativeIntersectionY * maxBounceAngle;
-
-    // 5. Preserve the current speed of the ball (magnitude of the vector)
     float currentSpeed = std::sqrt(b.vx * b.vx + b.vy * b.vy);
-
-    // 6. Calculate new velocities using simple trigonometry
-    // If we hit P1 (left), ball must move Right (positive X)
-    // If we hit P2 (right), ball must move Left (negative X)
     float direction = (collidedPaddle == 1) ? 1.0f : -1.0f;
 
     b.vx = currentSpeed * std::cos(bounceAngle) * direction;
@@ -308,7 +296,7 @@ void ballThread(int b_id) {
     int old_x = int(b.x);
     int old_y = int(b.y);
 
-    // Check collision at NEW position BEFORE committing
+    // Check collision at new position
     Ball temp = b;
     temp.x = nx;
     temp.y = ny;
@@ -325,7 +313,6 @@ void ballThread(int b_id) {
       }
     }
 
-    // Now commit the position update
     b.x = nx;
     b.y = ny;
     int new_x = int(b.x);
@@ -369,7 +356,6 @@ void ballThread(int b_id) {
 
 // Inicia o jogo
 void initGameState(void) {
-  lockGameState.lock();
   gameState.phase = 0;
   gameState.round = 0;
   gameState.win = 0;
@@ -383,15 +369,11 @@ void initGameState(void) {
   gameState.p1score = 0;
   gameState.p2score = 0;
 
-  lockGrid.lock();
   grid.resize(HEIGHT, vector<char>(WIDTH, '.'));
-  lockGrid.unlock();
 
   resetGrid();
-  lockGrid.lock();
   grid[int(b.y)][int(b.x)] = 'O';
-  lockGrid.unlock();
-  lockGameState.unlock();
+
 }
 
 // Tela de entrada
