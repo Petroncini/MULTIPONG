@@ -176,6 +176,10 @@ void resetThread() {
 
 // Thread responsável por imprimir o jogo
 void graphicsThread() {
+  const string BLUE = "\033[34m";
+  const string GREEN = "\033[32m";
+  const string RESET = "\033[0m";
+
   cout << "\033[2J";
   while (true) {
     updateGraphics.acquire();
@@ -186,7 +190,7 @@ void graphicsThread() {
     lockGameState.lock();
     buffer += "                     ROUND " + to_string(gameState.round + 1) +
               "                     \n";
-    buffer += "        PLAYER 1       vs        PLAYER 2        \n";
+    buffer += "        " + BLUE + "PLAYER 1" + RESET + "       vs        " + GREEN + "PLAYER 2" + RESET + "        \n";
     buffer += "           " + to_string(gameState.p1score) +
               "                        " + to_string(gameState.p2score) +
               "             \n";
