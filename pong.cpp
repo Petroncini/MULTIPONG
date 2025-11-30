@@ -191,7 +191,6 @@ void graphicsThread() {
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
       for (int j = 0; j < WIDTH; j++) {
-        // tem que tirar esse negócio de colorir a pá, muito trampo e fica feio
         char c = grid[i][j];
         buffer += c;
       }
@@ -199,10 +198,6 @@ void graphicsThread() {
     }
     buffer += "\nPress Ctrl+C to quit.\n";
     lockGrid.unlock();
-
-    // lockGameState.lock();
-    // buffer += "Num of balls: " + to_string(gameState.balls.size()) + "\n";
-    // lockGameState.unlock();
 
     cout << buffer << flush;
   }
