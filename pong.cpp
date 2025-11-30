@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
@@ -9,23 +10,12 @@
 #include <unistd.h>
 #include <vector>
 
-/*
-TODO:
-- Melhorar a colisão com a pá (tem vezes que era pra colidir mas passa direto)
-- Adicionar pontuação do jogador (talvez um mutex separado pra isso)
-- Adicionar mudança do ângulo da bola dependendo de onde colidiu com a pá (que
-nem no PONG original)
-- Adicionar q to quit
-- Adicionar efeitos sonoros
-- Adicionar placar no topo do grid talvez (pra ficar bonitinho)
-- Adicionar mensagem de "player 1 scores!" em algum lugar quando faz ponto
-*/
-
 using namespace std;
 
 // Dimensões do display do jogo
 #define WIDTH 51
 #define HEIGHT 20
+#define ANGLE_DELTA 0
 vector<thread> ballThreads;
 std::mutex lockGameState;
 std::mutex lockGrid;
@@ -36,19 +26,22 @@ struct Ball {
   float vx, vy;
 
   Ball(int b_id) : id(b_id) {
-    x = 10;
-    y = 10;
-    srand(time(NULL));
-    vx = (rand() % 2 + 1) / 7.5f;
-    vy = (rand() % 2 + 1) / 7.5f;
-  }
+    x = WIDTH / 2;
+    y = HEIGHT / 2;
 
-  Ball() {
-    x = 10;
-    y = 10;
-    srand(time(NULL));
-    vx = (rand() % 2 + 1) / 10.0f;
-    vy = (rand() % 2 + 1) / 10.0f;
+    // Random angle between -30° and 30° for shallow trajectory
+    float angle = (rand() % 60 - 30) * M_PI / 180.0f; // -30° to 30°
+    float speed = 0.25f;
+
+    vx = cos(angle) * speed;
+    vy = sin(angle) * speed;
+
+    if (rand() % 2 == 0) {
+      vx *= -1;
+    }
+    if (rand() % 2 == 0) {
+      vy *= -1;
+    }
   }
 };
 
@@ -151,10 +144,7 @@ void resetGame() {
   }
 
   for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
-
-    Ball &b = gameState.balls[b_id];
-    b.x = 10 + rand() % 10;
-    b.y = 10 + rand() % 10;
+    gameState.balls[b_id] = Ball(b_id);
   }
 
   gameState.p1y = HEIGHT / 2;
@@ -190,28 +180,20 @@ void graphicsThread() {
     string buffer = "";
 
     lockGameState.lock();
-    buffer += "                      ROUND " + to_string(gameState.round + 1) + "                      \n";
+    buffer += "║                     ROUND " + to_string(gameState.round + 1) +
+              "                     ║\n";
     buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
-    buffer += "            " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            \n";
+    buffer += "║          " + to_string(gameState.p1score) +
+              "                        " + to_string(gameState.p2score) +
+              "             ║\n";
     lockGameState.unlock();
 
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
-      for (int j = 0; j < WIDTH; j++) { 
+      for (int j = 0; j < WIDTH; j++) {
+        // tem que tirar esse negócio de colorir a pá, muito trampo e fica feio
         char c = grid[i][j];
-        if (c == '#' && ((gameState.win == 1 && j == 0) ||
-                         (gameState.win == 2 && j == WIDTH - 1))) {
-          // paddle = green
-          buffer += "\033[92m#\033[0m";
-        } else if (c == '#') {
-          buffer += "\033[37m#\033[0m";
-        } else if (c == 'O') {
-          // ball = white (normal)
-          buffer += "\033[37mO\033[0m";
-        } else {
-          // everything else (center line, dots) = default
-          buffer += c;
-        }
+        buffer += c;
       }
       buffer += '\n';
     }
@@ -222,10 +204,6 @@ void graphicsThread() {
     // lockGameState.unlock();
 
     cout << buffer << flush;
-
-    usleep(33000);
-
-
   }
 }
 
@@ -275,38 +253,88 @@ void playerThread() {
   }
 }
 
+void changeBallAngle(Ball &b, int collidedPaddle) {
+    // 1. Determine the center Y of the paddle we hit
+    float paddleCenterY = (collidedPaddle == 1) ? gameState.p1y : gameState.p2y;
+
+    // 2. Calculate relative intersection (how far from center did we hit?)
+    // Negative = hit top of paddle, Positive = hit bottom of paddle
+    float relativeIntersectY = b.y - paddleCenterY;
+
+    // 3. Normalize the intersection
+    // The paddle has a "radius" of roughly 1.0 to 1.5 (since height is 3 chars).
+    // We divide by 1.5 to map the edges of the paddle to roughly -1.0 and 1.0
+    float normalizedRelativeIntersectionY = relativeIntersectY / 1.5f;
+    
+    // Clamp the value between -1 and 1 to ensure we don't exceed max angle
+    // (std::clamp requires <algorithm> and C++17, otherwise use max/min)
+    if (normalizedRelativeIntersectionY > 1.0f) normalizedRelativeIntersectionY = 1.0f;
+    if (normalizedRelativeIntersectionY < -1.0f) normalizedRelativeIntersectionY = -1.0f;
+
+    // 4. Calculate new bounce angle
+    // 60 degrees in radians = 60 * PI / 180
+    float maxBounceAngle = 60.0f * M_PI / 180.0f;
+    float bounceAngle = normalizedRelativeIntersectionY * maxBounceAngle;
+
+    // 5. Preserve the current speed of the ball (magnitude of the vector)
+    float currentSpeed = std::sqrt(b.vx * b.vx + b.vy * b.vy);
+
+    // 6. Calculate new velocities using simple trigonometry
+    // If we hit P1 (left), ball must move Right (positive X)
+    // If we hit P2 (right), ball must move Left (negative X)
+    float direction = (collidedPaddle == 1) ? 1.0f : -1.0f;
+
+    b.vx = currentSpeed * std::cos(bounceAngle) * direction;
+    b.vy = currentSpeed * std::sin(bounceAngle);
+}
+
 void ballThread(int b_id) {
   while (true) {
     lockGameState.lock();
     Ball &b = gameState.balls[b_id];
-    float ox = b.x;
-    float oy = b.y;
-    float nx = ox + b.vx;
-    float ny = oy + b.vy;
 
-    if (ny >= HEIGHT - 1 || ny <= 0) {
+    // Calculate new position
+    float nx = b.x + b.vx;
+    float ny = b.y + b.vy;
+
+    // Bounce off top/bottom walls
+    if (ny > HEIGHT - 1 || ny < 0) {
       b.vy *= -1;
-    }
-    if (nx >= WIDTH - 1 || nx <= 0) {
-      b.vx *= -1;
+      ny = max(0.0f, min(float(HEIGHT - 1), ny));
     }
 
-    nx = max(0.0f, min(float(WIDTH - 1), nx));
-    ny = max(0.0f, min(float(HEIGHT - 1), ny));
+    // Store old position for rendering
+    int old_x = int(b.x);
+    int old_y = int(b.y);
 
-    int ix = int(ox);
-    int iy = int(oy);
-    b.x = ix;
-    b.y = iy;
-    int collision = ballCollidePaddle(b);
+    // Check collision at NEW position BEFORE committing
+    Ball temp = b;
+    temp.x = nx;
+    temp.y = ny;
+    int collision = ballCollidePaddle(temp);
 
-    // aqui depois tem que verificar se collison é 1 ou 2 pra alterar a
-    // pontuação;
-    lockGrid.lock();
+    // Handle collision - change angle and bounce
     if (collision != 0) {
-      grid[iy][ix] = '#';
-    } else if (ix <= 0 || ix >= WIDTH - 1) {
-      if (ix == 0) {
+      changeBallAngle(b, collision);
+      // Clamp position to stay at paddle edge, don't recalculate
+      if (collision == 1) {
+        nx = 1.0f; // Keep ball just after p1 paddle
+      } else {
+        nx = WIDTH - 2.0f; // Keep ball just before p2 paddle
+      }
+    }
+
+    // Now commit the position update
+    b.x = nx;
+    b.y = ny;
+    int new_x = int(b.x);
+    int new_y = int(b.y);
+
+    lockGrid.lock();
+
+    // Handle scoring (ball passed paddle)
+    if (collision == 0 && (new_x <= 0 || new_x >= WIDTH - 1)) {
+      if (new_x <= 0) {
         gameState.p2score++;
         gameState.win = 2;
       } else {
@@ -317,27 +345,26 @@ void ballThread(int b_id) {
       lockGameState.unlock();
       resetGrid();
       updateGraphics.release();
-      usleep(10000);
       return;
-    } else if (ix == WIDTH / 2) {
-      grid[iy][ix] = '|';
-    } else {
-      grid[iy][ix] = '.';
     }
 
-    b.x = nx;
-    b.y = ny;
-    lockGameState.unlock();
-    grid[b.y][b.x] = 'O';
+    // Clear old position
+    if (old_x == WIDTH / 2) {
+      grid[old_y][old_x] = '|';
+    } else if (grid[old_y][old_x] == 'O') {
+      grid[old_y][old_x] = '.';
+    }
+
+    // Draw new position
+    grid[new_y][new_x] = 'O';
+
     lockGrid.unlock();
+    lockGameState.unlock();
     updateGraphics.release();
 
-    // isso devia ser uma variável que vai diminuindo com o tempo
     usleep(20000);
   }
 }
-
-
 void initGameState(void) {
   lockGameState.lock();
   gameState.phase = 0;
@@ -363,7 +390,6 @@ void initGameState(void) {
   lockGrid.unlock();
   lockGameState.unlock();
 }
-
 
 void showStartScreen() {
   cout << "\033[2J\033[H";
@@ -393,11 +419,10 @@ void showStartScreen() {
   buffer += "  ║                                                   ║\n";
   buffer += "  ╚═══════════════════════════════════════════════════╝\n";
   cout << buffer << flush;
-  
+
   // Aguarda o jogador pressionar Enter
   cin.get();
 }
-
 
 int main(void) {
 
