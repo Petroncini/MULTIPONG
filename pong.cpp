@@ -20,6 +20,8 @@ vector<thread> ballThreads;
 std::mutex lockGameState;
 // Mutex for grid protection
 std::mutex lockGrid;
+// Global quit flag
+bool QUIT = false;
 
 // Ball structure
 struct Ball {
@@ -148,7 +150,7 @@ void resetGame() {
   gameState.round++;
 
   // Add new ball every 5 rounds
-  if (gameState.round % 5 == 0) {
+  if (gameState.round % 3 == 0) {
     gameState.phase++;
     Ball b = Ball();
     gameState.balls.push_back(b);
@@ -170,12 +172,14 @@ void resetGame() {
 
 // Thread that controls reset after scoring
 void resetThread() {
-  while (true) {
+  while (!QUIT) {
     // Wait for all ball threads to finish
     for (auto &ballThread : ballThreads) {
       ballThread.join();
     }
     ballThreads.clear();
+    if (QUIT)
+      break;
     resetGame();
     // Restart ball threads
     lockGameState.lock();
@@ -194,7 +198,7 @@ void graphicsThread() {
   const string RESET = "\033[0m";
 
   cout << "\033[2J";
-  while (true) {
+  while (!QUIT) {
     updateGraphics.acquire();
     cout << "\033[H";
 
@@ -219,7 +223,7 @@ void graphicsThread() {
       }
       buffer += '\n';
     }
-    buffer += "Press Ctrl+C to quit.";
+    buffer += "Press Q to quit.";
     lockGrid.unlock();
 
     cout << buffer << flush;
@@ -228,9 +232,15 @@ void graphicsThread() {
 
 // Thread that reads keys and moves paddles
 void playerThread() {
-  while (true) {
+  while (!QUIT) {
     if (kbhit()) {
       char c = getch();
+      // Check for quit
+      if (c == 'q') {
+        QUIT = true;
+        updateGraphics.release();
+        break;
+      }
       lockGrid.lock();
       lockGameState.lock();
       // Player 1 up
@@ -303,7 +313,7 @@ void changeBallAngle(Ball &b, int collidedPaddle) {
 
 // Ball thread
 void ballThread(int b_id) {
-  while (true) {
+  while (!QUIT) {
     lockGameState.lock();
     Ball &b = gameState.balls[b_id];
 
@@ -454,4 +464,6 @@ int main(void) {
   graphics_worker.join();
   player_worker.join();
   resetWorker.join();
+
+  disableRawMode();
 }
