@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <ctime>
 #include <iostream>
 #include <semaphore>
 #include <sys/select.h>
@@ -15,17 +14,15 @@ using namespace std;
 // Display dimensions
 #define WIDTH 51
 #define HEIGHT 20
-#define ANGLE_DELTA 0
 vector<thread> ballThreads;
 std::mutex lockGameState;
 std::mutex lockGrid;
 
 struct Ball {
-  short id;
   float x, y;
   float vx, vy;
 
-  Ball(int b_id) : id(b_id) {
+  Ball() {
     x = WIDTH / 2;
     y = HEIGHT / 2;
 
@@ -143,12 +140,12 @@ void resetGame() {
 
   if (gameState.round % 5 == 0) {
     gameState.phase++;
-    Ball b = Ball(gameState.phase);
+    Ball b = Ball();
     gameState.balls.push_back(b);
   }
 
   for (int b_id = 0; b_id < gameState.balls.size(); b_id++) {
-    gameState.balls[b_id] = Ball(b_id);
+    gameState.balls[b_id] = Ball();
   }
 
   gameState.p1y = HEIGHT / 2;
@@ -354,7 +351,7 @@ void initGameState(void) {
   gameState.round = 0;
   gameState.win = 0;
 
-  Ball b = Ball(0);
+  Ball b = Ball();
   gameState.balls.push_back(b);
 
   gameState.p1y = HEIGHT / 2;
