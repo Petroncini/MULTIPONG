@@ -190,14 +190,14 @@ void graphicsThread() {
     string buffer = "";
 
     lockGameState.lock();
-    buffer += "║                     ROUND " + to_string(gameState.round + 1) + "                     ║\n";
+    buffer += "                      ROUND " + to_string(gameState.round + 1) + "                      \n";
     buffer += "║        PLAYER 1       vs        PLAYER 2        ║\n";
     buffer += "            " + to_string(gameState.p1score) + "                        " + to_string(gameState.p2score) + "            \n";
     lockGameState.unlock();
 
     lockGrid.lock();
     for (int i = 0; i < HEIGHT; i++) {
-      for (int j = 0; j < WIDTH; j++) {
+      for (int j = 0; j < WIDTH; j++) { 
         char c = grid[i][j];
         if (c == '#' && ((gameState.win == 1 && j == 0) ||
                          (gameState.win == 2 && j == WIDTH - 1))) {
@@ -224,6 +224,8 @@ void graphicsThread() {
     cout << buffer << flush;
 
     usleep(33000);
+
+
   }
 }
 
